@@ -1,0 +1,63 @@
+{{- if .Values.local_dev }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-database
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-database
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}-database
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}-database
+        app.kubernetes.io/instance: {{ .Release.Name }}
+  containers:
+    - env:
+        - name: POSTGRES_PASSWORD
+          value: password
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_DB
+          value: ns_sync
+      image: postgres:10-alpine
+      imagePullPolicy: IfNotPresent
+      name: database
+      ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Release.Name }}-database-migration
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}-database-migration
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  restartPolicy: OnFailure
+  initContainers:
+    - name: wait-for-postgres
+      image: postgres:10-alpine
+      command:
+        - 'sh'
+        - '-c'
+        - 'until pg_isready --dbname ${DB_URI}; do echo waiting for postgres; sleep 2; done;'
+      env:
+        - name: DB_URI
+          value: "postgres://{{ .Release.Name }}-database.default.svc.cluster.local/ns_sync?user=postgres&password=password"
+  containers:
+    - name: alembic
+      image: "{{ .Values.flask.image.repository }}:{{ .Values.flask.image.tag }}"
+      command: ['alembic', 'upgrade', 'head']
+      env:
+        - name: DB_URI
+          value: "postgres://{{ .Release.Name }}-database.default.svc.cluster.local/ns_sync?user=postgres&password=password"
+{{- end }}

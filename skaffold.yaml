@@ -1,0 +1,30 @@
+apiVersion: skaffold/v1beta13
+kind: Config
+build:
+  artifacts:
+  - image: hcx-quickbooks-dashboard-flask
+    docker:
+      dockerfile: Dockerfile
+  - image: hcx-quickbooks-dashboard-nginx
+    docker:
+      dockerfile: Dockerfile.nginx
+      buildArgs:
+        webpack_flavor: dev
+deploy:
+  helm:
+    releases:
+    - name: hcx-quickbooks-dashboard
+      chartPath: charts/hcx-quickbooks-dashboard
+      values:
+        flask.image: hcx-quickbooks-dashboard-flask
+        nginx.image: hcx-quickbooks-dashboard-nginx
+      setValues:
+        local_dev.enabled: true
+      imageStrategy:
+        helm: {}
+
+portForward:
+  - resourceType: service
+    resourceName: hcx-quickbooks-dashboard
+    port: 80
+    localPort: 4503
